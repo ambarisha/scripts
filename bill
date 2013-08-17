@@ -1,0 +1,131 @@
+#!/usr/bin/python
+
+import os
+import sys
+
+names = ['name1', 'name2', 'name3']
+
+sums = {}
+bills = {}
+
+for name in names:
+	sums[name] = 0
+	bills[name] = []
+
+def get_int():
+	s = raw_input()
+	if s == "":
+		return 0
+	return int(s)
+
+def load_bills():
+	if not os.path.exists('~/.bills'):
+		return
+
+	f = open("bills.txt", "r")
+	lines = [line.strip() for line in f.readlines()]
+	for i in range(len(names)):
+		[name, amount] = lines[i].split('\t')
+		amount = int(amount)
+		sums[name] = amount
+
+	lines = lines[len(names):]
+	for line in lines:
+		line = line.split('\t')
+		name = line[0]
+		amount = int(line[1])
+		reason = line[2].strip()	
+		bills[name].append((amount, reason))
+	f.close()
+	return
+
+def save_bills(fn):
+	f = open(fn, "w")
+	lines = []
+	for name in names:
+		lines.append(name + "\t" + str(sums[name]) + "\n")
+	f.writelines(lines)
+	lines = []
+
+	for name in names:
+		for bill in bills[name]:
+			lines.append(name + "\t" + str(bill[0]) + "\t" + bill[1] + "\n") 
+	f.writelines(lines)
+	return
+
+def add_bill(payer, amount, payees, reason):
+	perhead = amount / len(payees)
+	paidamnt = 0
+	for payee in payees:
+		if not payee == payer:
+			sums[payee] += perhead
+			bills[payee].append((perhead, reason))
+			paidamnt -= perhead
+		else:
+			bills[payee].append((perhead, reason))
+	sums[payer] += paidamnt
+	bills[payer].append((paidamnt, reason))
+
+def pool_bill(reason):
+	print "Payments received from"
+	payments = dict.fromkeys(names, {})
+	billings = dict.fromkeys(names, {})
+	total = 0
+
+	for name in names:
+		print name + "\t:",
+		payments[name] = get_int()		
+		total += payments[name]
+	
+	print "\nTotal amount to split: " + str(total)
+	print "Billings to"
+	
+	for name in names:
+		print name + "\t:",
+		billings[name] = get_int()
+		total -= billings[name]
+	
+	if total > 0:
+		print "Warning! " + str(total) + " rupees in excess"
+	elif total < 0:
+		print "Error! " + str(total) + " rupees short"
+		exit()
+
+	for name in names:
+		if payments[name] == 0 and billings[name] == 0:
+			continue
+		amount = payments[name] - billings[name]
+		sums[name] -= amount
+		if billings[name] != 0:
+			bills[name].append((billings[name], reason))
+		if payments[name] != 0:
+			bills[name].append((-payments[name], reason))
+def usage():
+	print "Usage: " + sys.argv[0] + " specific <payer> <amount> <person1> <person2> ..."
+	print "       " + sys.argv[0] + " pool <reason>"
+	print "People: "
+	for name in names:
+		print "       " + name
+	exit()
+	
+if len(sys.argv) < 2:
+	usage()
+
+load_bills()
+if sys.argv[1] == 'specific':
+	payer = sys.argv[2]
+	amount = int(sys.argv[3])
+	payees = list(names) if sys.argv[4] == 'all' else sys.argv[4:]
+	if sys.argv[4] == 'all':
+		payees.remove('billa')
+		payees.remove('malli')
+	print 'Reason:',
+	reason = raw_input()
+	add_bill(payer, amount, payees, reason)
+
+elif sys.argv[1] == 'pool':
+	reason = " ".join(sys.argv[2:])
+	pool_bill(reason)
+else:
+	usage()	
+save_bills('bills.txt')
